@@ -1,0 +1,38 @@
+{
+    "Records": [
+        {
+            "eventVersion": "2.1",
+            "eventSource": "aws:s3",
+            "awsRegion": "us-east-2",
+            "eventTime": "2023-05-08T02:39:43.057Z",
+            "eventName": "ObjectCreated:Put",
+            "userIdentity": {
+                "principalId": "AWS:AROATYEASKJYDJ6XSH23B:Comprehend"
+            },
+            "requestParameters": {
+                "sourceIPAddress": "10.0.198.231"
+            },
+            "responseElements": {
+                "x-amz-request-id": "78FYMJ2XBH4JB7V0",
+                "x-amz-id-2": "reTRK8SK8DjVqn77ka80eucnKVQRhRYDfHZA4zJXuS1qW0Jg4BZenvtJD3dEk85s26LkmgV7ytF8Opc6c7oKtJQEgOq/ceVZN5IajkQXBF8="
+            },
+            "s3": {
+                "s3SchemaVersion": "1.0",
+                "configurationId": "c60bc658-08c4-426a-b1b0-84ce50f2f017",
+                "bucket": {
+                    "name": "lambdapiidatainput",
+                    "ownerIdentity": {
+                        "principalId": "A3NKU1C9BMPAEH"
+                    },
+                    "arn": "arn:aws:s3:::lambdapiidatainput"
+                },
+                "object": {
+                    "key": "output/257967673968-PII-afcbc8f247f4b658d9f20889800b1b86/output/Untitled.txt.out",
+                    "size": 307,
+                    "eTag": "7534f78c6acad516685f4a50174da1b3",
+                    "sequencer": "00645860EEF7A192AF"
+                }
+            }
+        }
+    ]
+}
