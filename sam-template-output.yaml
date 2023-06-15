@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: PII replacement service
+Parameters:
+  SourceBucketName:
+    Type: String
+  DestinationBucketName:
+    Type: String
+Resources:
+  SourceBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Ref: SourceBucketName
+    Metadata:
+      SamResourceId: SourceBucket
+  DestinationBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Ref: DestinationBucketName
+    Metadata:
+      SamResourceId: DestinationBucket
+  PIIExtractionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://piibucketdoclens/cefd0a9a4cbe8e85c129c164af059f5e
+      Policies:
+      - S3ReadPolicy:
+          BucketName:
+            Ref: SourceBucketName
+      - S3CrudPolicy:
+          BucketName:
+            Ref: DestinationBucketName
+      Environment:
+        Variables:
+          SOURCE_BUCKETNAME:
+            Ref: SourceBucketName
+          DESTINATION_BUCKETNAME:
+            Ref: DestinationBucketName
+          COMPREHEND_ROLE: arn:aws:iam::257967673968:role/service-role/AmazonComprehendServiceRole-PII2
+      FunctionName:
+        Fn::Sub:
+        - ${AWS::StackName}-${LambdaFunctionName}
+        - LambdaFunctionName: PIIExtractionFunction
+      Handler: app.lambda_handler
+      MemorySize: 128
+      Runtime: python3.9
+      Timeout: 30
+    Metadata:
+      SamResourceId: PIIExtractionFunction
+  ComprehendPIIResultsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://piibucketdoclens/91f2dbf9ba48bf4007e837b7e7739a1d
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      MemorySize: 512
+      Policies:
+      - S3ReadPolicy:
+          BucketName:
+            Ref: SourceBucketName
+      - S3CrudPolicy:
+          BucketName:
+            Ref: DestinationBucketName
+      Environment:
+        Variables:
+          SOURCE_BUCKETNAME:
+            Ref: SourceBucketName
+          DESTINATION_BUCKETNAME:
+            Ref: DestinationBucketName
+      Events:
+        ComprehendResultsAvailable:
+          Type: S3
+          Properties:
+            Bucket:
+              Ref: DestinationBucket
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                - Name: prefix
+                  Value: output/
+                - Name: suffix
+                  Value: .out
+    Metadata:
+      SamResourceId: ComprehendPIIResultsFunction
+Outputs:
+  SourceBucketName:
+    Value:
+      Ref: SourceBucketName
+    Description: S3 Bucket for object storage
+  DestinationBucketName:
+    Value:
+      Ref: DestinationBucketName
+    Description: S3 destination Bucket for object storage

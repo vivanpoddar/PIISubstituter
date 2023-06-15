@@ -1,0 +1,1 @@
+{"Entities": [{"BeginOffset": 6, "EndOffset": 18, "Type": "NAME", "Score": 0.9999705562737389}, {"BeginOffset": 70, "EndOffset": 89, "Type": "BANK_ACCOUNT_NUMBER", "Score": 0.9839155315410819}, {"BeginOffset": 104, "EndOffset": 137, "Type": "ADDRESS", "Score": 0.9996774694677704}], "File": "Untitled.txt"}
