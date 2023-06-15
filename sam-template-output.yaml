@@ -4,93 +4,390 @@ Description: PII replacement service
 Parameters:
   SourceBucketName:
     Type: String
-  DestinationBucketName:
-    Type: String
 Resources:
   SourceBucket:
     Type: AWS::S3::Bucket
+    DependsOn:
+    - PIISubstituterQueuePolicy
     Properties:
       BucketName:
         Ref: SourceBucketName
+      NotificationConfiguration:
+        QueueConfigurations:
+        - Event: s3:ObjectCreated:*
+          Queue:
+            Fn::GetAtt:
+            - PIISubstituterQueue
+            - Arn
+          Filter:
+            S3Key:
+              Rules:
+              - Name: prefix
+                Value: output/
+              - Name: suffix
+                Value: .out
     Metadata:
       SamResourceId: SourceBucket
-  DestinationBucket:
-    Type: AWS::S3::Bucket
+  TranscribeEventBridgeRole:
+    Type: AWS::IAM::Role
     Properties:
-      BucketName:
-        Ref: DestinationBucketName
+      RoleName: MyEventBridgeRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: events.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/AmazonEventBridgeFullAccess
+      Policies:
+      - PolicyName: InvokeLambdaFunction
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action: lambda:InvokeFunction
+            Resource:
+              Fn::GetAtt:
+              - TranscribeCompletedFunction
+              - Arn
     Metadata:
-      SamResourceId: DestinationBucket
+      SamResourceId: TranscribeEventBridgeRole
+  TranscribeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - transcribe.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: s3
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:*
+            Resource:
+            - Fn::Join:
+              - ''
+              - - 'arn:aws:s3:::'
+                - Ref: SourceBucketName
+            - Fn::Join:
+              - ''
+              - - 'arn:aws:s3:::'
+                - Ref: SourceBucketName
+                - /*
+    Metadata:
+      SamResourceId: TranscribeRole
+  ComprehendRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - comprehend.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: s3
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:*
+            Resource:
+            - Fn::Join:
+              - ''
+              - - 'arn:aws:s3:::'
+                - Ref: SourceBucketName
+            - Fn::Join:
+              - ''
+              - - 'arn:aws:s3:::'
+                - Ref: SourceBucketName
+                - /*
+    Metadata:
+      SamResourceId: ComprehendRole
+  PIILambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: s3
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:*
+            Resource:
+            - arn:aws:s3:::piidataoutput
+            - arn:aws:s3:::piidataoutput/*
+            - Fn::Join:
+              - ''
+              - - 'arn:aws:s3:::'
+                - Ref: SourceBucketName
+            - Fn::Join:
+              - ''
+              - - 'arn:aws:s3:::'
+                - Ref: SourceBucketName
+                - /*
+      - PolicyName: lambda_basic_execution
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource:
+              Fn::Sub:
+              - arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-${LambdaFunctionName}:*
+              - LambdaFunctionName: '*'
+      - PolicyName: sqs
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - sqs:DeleteMessage
+            - sqs:GetQueueAttributes
+            - sqs:ReceiveMessage
+            Resource:
+              Fn::GetAtt:
+              - PIISubstituterQueue
+              - Arn
+      - PolicyName: kms
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - kms:*
+            Resource: '*'
+      - PolicyName: sns
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - sns:Publish
+            Resource:
+            - arn:aws:sns:us-east-2:*:*
+      - PolicyName: comprehend
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - comprehend:*
+            Resource:
+            - '*'
+      - PolicyName: iampassrole
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - iam:passrole
+            Resource:
+            - Fn::GetAtt:
+              - ComprehendRole
+              - Arn
+            - Fn::GetAtt:
+              - TranscribeRole
+              - Arn
+      - PolicyName: transcribe
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - transcribe:*
+            Resource:
+            - '*'
+      RoleName:
+        Fn::Sub:
+        - ${AWS::StackName}-${ExecutionRoleName}
+        - ExecutionRoleName: ComprehendTranscribeRole
+    Metadata:
+      SamResourceId: PIILambdaExecutionRole
   PIIExtractionFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: s3://piibucketdoclens/cefd0a9a4cbe8e85c129c164af059f5e
-      Policies:
-      - S3ReadPolicy:
-          BucketName:
-            Ref: SourceBucketName
-      - S3CrudPolicy:
-          BucketName:
-            Ref: DestinationBucketName
+      CodeUri: s3://piibucketdoclens/3d643a887bf3341351c45c9989d512e1
       Environment:
         Variables:
-          SOURCE_BUCKETNAME:
-            Ref: SourceBucketName
-          DESTINATION_BUCKETNAME:
-            Ref: DestinationBucketName
-          COMPREHEND_ROLE: arn:aws:iam::257967673968:role/service-role/AmazonComprehendServiceRole-PII2
+          COMPREHEND_ROLE:
+            Fn::GetAtt:
+            - ComprehendRole
+            - Arn
       FunctionName:
         Fn::Sub:
         - ${AWS::StackName}-${LambdaFunctionName}
         - LambdaFunctionName: PIIExtractionFunction
       Handler: app.lambda_handler
+      Role:
+        Fn::GetAtt:
+        - PIILambdaExecutionRole
+        - Arn
       MemorySize: 128
       Runtime: python3.9
       Timeout: 30
+      Events:
+        MySQSEvent:
+          Type: SQS
+          Properties:
+            Queue:
+              Fn::GetAtt:
+              - PIISubstituterQueue
+              - Arn
     Metadata:
       SamResourceId: PIIExtractionFunction
   ComprehendPIIResultsFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: s3://piibucketdoclens/91f2dbf9ba48bf4007e837b7e7739a1d
+      CodeUri: s3://piibucketdoclens/3fc1d0998603b2c0fc19e5c8ae449b93
+      FunctionName:
+        Fn::Sub:
+        - ${AWS::StackName}-${LambdaFunctionName}
+        - LambdaFunctionName: ComprehendPIIResultsFunction
       Handler: app.lambda_handler
       Runtime: python3.9
       MemorySize: 512
-      Policies:
-      - S3ReadPolicy:
-          BucketName:
-            Ref: SourceBucketName
-      - S3CrudPolicy:
-          BucketName:
-            Ref: DestinationBucketName
+      EphemeralStorage:
+        Size: 10240
       Environment:
         Variables:
           SOURCE_BUCKETNAME:
             Ref: SourceBucketName
-          DESTINATION_BUCKETNAME:
-            Ref: DestinationBucketName
+      Role:
+        Fn::GetAtt:
+        - PIILambdaExecutionRole
+        - Arn
       Events:
-        ComprehendResultsAvailable:
-          Type: S3
+        MySQSEvent:
+          Type: SQS
           Properties:
-            Bucket:
-              Ref: DestinationBucket
-            Events: s3:ObjectCreated:*
-            Filter:
-              S3Key:
-                Rules:
-                - Name: prefix
-                  Value: output/
-                - Name: suffix
-                  Value: .out
+            Queue:
+              Fn::GetAtt:
+              - PIISubstituterQueue
+              - Arn
     Metadata:
       SamResourceId: ComprehendPIIResultsFunction
+  TranscribeAudioFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://piibucketdoclens/f0d06aa83cd69ddff5b3287f87c8bfd8
+      FunctionName:
+        Fn::Sub:
+        - ${AWS::StackName}-${LambdaFunctionName}
+        - LambdaFunctionName: TranscribeAudioFunction
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      MemorySize: 512
+      EphemeralStorage:
+        Size: 10240
+      Environment:
+        Variables:
+          TRANSCRIBE_ROLE:
+            Fn::GetAtt:
+            - TranscribeRole
+            - Arn
+      Role:
+        Fn::GetAtt:
+        - PIILambdaExecutionRole
+        - Arn
+    Metadata:
+      SamResourceId: TranscribeAudioFunction
+  TranscribeCompletedFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://piibucketdoclens/06d67cf54fbf8b2602a629be768d16d5
+      Handler: app.lambda_handler
+      Runtime: python3.9
+    Metadata:
+      SamResourceId: TranscribeCompletedFunction
+  TranscribeCompletedEventBridgeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+        - aws.transcribe
+        detail-type:
+        - Transcribe Job State Change
+        detail:
+          TranscriptionJobStatus:
+          - COMPLETED
+      Targets:
+      - Arn:
+          Fn::GetAtt:
+          - TranscribeCompletedFunction
+          - Arn
+        Id: TranscribeCompletedFunctionTarget
+    Metadata:
+      SamResourceId: TranscribeCompletedEventBridgeRule
+  PIISubstituterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: PII-Substituter-Lambda-Queue
+    Metadata:
+      SamResourceId: PIISubstituterQueue
+  PIISubstituterQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Id: QueuePolicy
+        Statement:
+        - Sid: Allow-SendMessage-To-Queue-From-S3-Event-Notification
+          Effect: Allow
+          Principal:
+            Service: s3.amazonaws.com
+          Action:
+          - sqs:SendMessage
+          Resource:
+            Fn::GetAtt:
+            - PIISubstituterQueue
+            - Arn
+          Condition:
+            ArnLike:
+              aws:SourceArn:
+                Fn::Join:
+                - ''
+                - - 'arn:aws:s3:::'
+                  - Ref: SourceBucketName
+            StringEquals:
+              aws:SourceAccount:
+                Ref: AWS::AccountId
+      Queues:
+      - Ref: PIISubstituterQueue
+    Metadata:
+      SamResourceId: PIISubstituterQueuePolicy
 Outputs:
   SourceBucketName:
     Value:
       Ref: SourceBucketName
     Description: S3 Bucket for object storage
-  DestinationBucketName:
-    Value:
-      Ref: DestinationBucketName
-    Description: S3 destination Bucket for object storage

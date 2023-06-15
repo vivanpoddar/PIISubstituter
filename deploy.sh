@@ -12,6 +12,8 @@ VERSION=1-0-0
 STACK_NAME=comprehend-lambda-$VERSION
 PROFILE=default
 
+sam validate --template-file $INPUT_FILE --profile $PROFILE
+
 # Package the application
 sam build --template-file $INPUT_FILE --profile $PROFILE
 
