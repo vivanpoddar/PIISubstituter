@@ -1,4 +1,4 @@
-<h3 align="center">PII Substiter </h3>
+<h1 align="center">PII Substiter</h1>
 <p align="center">A tool to remove personal identifiable information (PII) from legal documents for privacy in processing by third party services. Made with AWS.</p>
 
 <details>
