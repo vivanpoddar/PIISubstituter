@@ -1,4 +1,4 @@
-<h1 align="center">PII Substiter</h1>
+<h1 align="center">PII Substituter</h1>
 <p align="center">A tool to remove personal identifiable information (PII) from legal documents for privacy in processing by third party services. Made with AWS.</p>
 
 <details>
@@ -40,7 +40,7 @@ This was a project started in May of 2023 for a three week internship at DocLens
 
 ### Prerequisites
 
-Install the AWS ClI:
+Install the AWS CLI:
 1. `curl "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o "AWSCLIV2.pkg"`
 2. Replace /target with wherever you want to install the package <br>
 `sudo installer -pkg ./AWSCLIV2.pkg -target /target`
